@@ -228,7 +228,7 @@ class HasPaperTrailModelTest < ActiveSupport::TestCase
           'id'         => [nil, @widget.id]
         }
 
-        assert_equal Time, @widget.versions.last.changeset['updated_at'][1].class
+        assert_kind_of Time, @widget.versions.last.changeset['updated_at'][1]
         assert_equal changes, @widget.versions.last.changeset
       end
 
@@ -982,11 +982,8 @@ class HasPaperTrailModelTest < ActiveSupport::TestCase
   if ::ActiveRecord::VERSION::MAJOR < 5
     context 'When an attribute has a custom serializer' do
       setup do
-        PaperTrail.config.serialized_attributes = true
         @person = Person.new(:time_zone => "Samoa")
       end
-
-      teardown { PaperTrail.config.serialized_attributes = false }
 
       should "be an instance of ActiveSupport::TimeZone" do
         assert_equal ActiveSupport::TimeZone, @person.time_zone.class
