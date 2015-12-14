@@ -126,135 +126,63 @@ module PaperTrail
         @paper_trail_version_class ||= version_class_name.constantize
       end
 
-      if defined?(::ActiveRecord::VERSION::STRING) &&
-          ::ActiveRecord::VERSION::STRING =~ /4\.2|5\.\d/
+      # Used for `Version#object` attribute.
+      def serialize_attributes_for_paper_trail!(attributes)
+        # Don't serialize before values before inserting into columns of type
+        # `JSON` on `PostgreSQL` databases.
+        return attributes if self.paper_trail_version_class.object_col_is_json?
 
-        # Used for `Version#object` attribute.
-        def serialize_attributes_for_paper_trail!(attributes)
-          # Don't serialize before values before inserting into columns of type
-          # `JSON` on `PostgreSQL` databases.
-          return attributes if self.paper_trail_version_class.object_col_is_json?
-
-          attributes.each_key do |key|
-            type = type_for_attribute(key)
-            attributes[key] = type.type_cast_for_database(attributes[key])
-          end
+        attributes.each_key do |key|
+          type = type_for_attribute(key)
+          attributes[key] = type.type_cast_for_database(attributes[key])
         end
+      end
 
-        # TODO: There is a lot of duplication between this and
-        # `serialize_attributes_for_paper_trail!`.
-        def unserialize_attributes_for_paper_trail!(attributes)
-          # Don't serialize before values before inserting into columns of type
-          # `JSON` on `PostgreSQL` databases.
-          return attributes if self.paper_trail_version_class.object_col_is_json?
+      # TODO: There is a lot of duplication between this and
+      # `serialize_attributes_for_paper_trail!`.
+      def unserialize_attributes_for_paper_trail!(attributes)
+        # Don't serialize before values before inserting into columns of type
+        # `JSON` on `PostgreSQL` databases.
+        return attributes if self.paper_trail_version_class.object_col_is_json?
 
-          attributes.each_key do |key|
-            type = type_for_attribute(key)
-            attributes[key] = type.type_cast_from_database(attributes[key])
-          end
+        attributes.each_key do |key|
+          type = type_for_attribute(key)
+          attributes[key] = type.type_cast_from_database(attributes[key])
         end
+      end
 
-        # Used for Version#object_changes attribute.
-        def serialize_attribute_changes_for_paper_trail!(changes)
-          # Don't serialize before values before inserting into columns of type `JSON`
-  # on `PostgreSQL` databases.
-          return changes if self.paper_trail_version_class.object_changes_col_is_json?
+      # Used for Version#object_changes attribute.
+      def serialize_attribute_changes_for_paper_trail!(changes)
+        # Don't serialize before values before inserting into columns of type `JSON`
+# on `PostgreSQL` databases.
+        return changes if self.paper_trail_version_class.object_changes_col_is_json?
 
-          changes.each_key do |key|
-            type = type_for_attribute(key)
-            old_value, new_value = changes[key]
+        changes.each_key do |key|
+          type = type_for_attribute(key)
+          old_value, new_value = changes[key]
 
-            changes[key] = [
-              type.type_cast_for_database(old_value),
-              type.type_cast_for_database(new_value)
-            ]
-          end
+          changes[key] = [
+            type.type_cast_for_database(old_value),
+            type.type_cast_for_database(new_value)
+          ]
         end
+      end
 
-        # TODO: There is a lot of duplication between this and
-        # `serialize_attribute_changes_for_paper_trail!`.
-        def unserialize_attribute_changes_for_paper_trail!(changes)
-          # Don't serialize before values before inserting into columns of type
-          # `JSON` on `PostgreSQL` databases.
-          return changes if self.paper_trail_version_class.object_changes_col_is_json?
+      # TODO: There is a lot of duplication between this and
+      # `serialize_attribute_changes_for_paper_trail!`.
+      def unserialize_attribute_changes_for_paper_trail!(changes)
+        # Don't serialize before values before inserting into columns of type
+        # `JSON` on `PostgreSQL` databases.
+        return changes if self.paper_trail_version_class.object_changes_col_is_json?
 
-          changes.each_key do |key|
-            type = type_for_attribute(key)
-            old_value, new_value = changes[key]
+        changes.each_key do |key|
+          type = type_for_attribute(key)
+          old_value, new_value = changes[key]
 
-            changes[key] = [
-              type.type_cast_from_database(old_value),
-              type.type_cast_from_database(new_value)
-            ]
-          end
-        end
-      else
-        # Used for `Version#object` attribute.
-        def serialize_attributes_for_paper_trail!(attributes)
-          # Don't serialize before values before inserting into columns of type
-          # `JSON` on `PostgreSQL` databases.
-          return attributes if self.paper_trail_version_class.object_col_is_json?
-
-          serialized_attributes.each do |key, coder|
-            if attributes.key?(key)
-              # Fall back to current serializer if `coder` has no `dump` method.
-              coder = PaperTrail.serializer unless coder.respond_to?(:dump)
-              attributes[key] = coder.dump(attributes[key])
-            end
-          end
-        end
-
-        # TODO: There is a lot of duplication between this and
-        # `serialize_attributes_for_paper_trail!`.
-        def unserialize_attributes_for_paper_trail!(attributes)
-          # Don't serialize before values before inserting into columns of type
-          # `JSON` on `PostgreSQL` databases.
-          return attributes if self.paper_trail_version_class.object_col_is_json?
-
-          serialized_attributes.each do |key, coder|
-            if attributes.key?(key)
-              # Fall back to current serializer if `coder` has no `dump` method.
-              # TODO: Shouldn't this be `:load`?
-              coder = PaperTrail.serializer unless coder.respond_to?(:dump)
-              attributes[key] = coder.load(attributes[key])
-            end
-          end
-        end
-
-        # Used for Version#object_changes attribute.
-        def serialize_attribute_changes_for_paper_trail!(changes)
-          # Don't serialize before values before inserting into columns of type `JSON`
-  # on `PostgreSQL` databases.
-          return changes if self.paper_trail_version_class.object_changes_col_is_json?
-
-          serialized_attributes.each do |key, coder|
-            if changes.key?(key)
-              # Fall back to current serializer if `coder` has no `dump` method.
-              coder = PaperTrail.serializer unless coder.respond_to?(:dump)
-              old_value, new_value = changes[key]
-              changes[key] = [coder.dump(old_value),
-                              coder.dump(new_value)]
-            end
-          end
-        end
-
-        # TODO: There is a lot of duplication between this and
-        # `serialize_attribute_changes_for_paper_trail!`.
-        def unserialize_attribute_changes_for_paper_trail!(changes)
-          # Don't serialize before values before inserting into columns of type
-          # `JSON` on `PostgreSQL` databases.
-          return changes if self.paper_trail_version_class.object_changes_col_is_json?
-
-          serialized_attributes.each do |key, coder|
-            if changes.key?(key)
-              # Fall back to current serializer if `coder` has no `dump` method.
-              # TODO: Shouldn't this be `:load`?
-              coder = PaperTrail.serializer unless coder.respond_to?(:dump)
-              old_value, new_value = changes[key]
-              changes[key] = [coder.load(old_value),
-                              coder.load(new_value)]
-            end
-          end
+          changes[key] = [
+            type.type_cast_from_database(old_value),
+            type.type_cast_from_database(new_value)
+          ]
         end
       end
     end
